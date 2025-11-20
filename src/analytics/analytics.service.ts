@@ -17,7 +17,7 @@ import { SubmitAnalyticsBatchDto } from './dto/submit-analytics-batch.dto'
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger('AnalyticsService')
-  private readonly CLIENT_ID_REGEX = /^[a-zA-Z0-9-]+@\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?@[0-9a-f-]{36}$/
+  private readonly CLIENT_ID_REGEX = /^[a-zA-Z0-9-]+@\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?@[0-9a-f-]{36}(@[a-zA-Z0-9_-]{43})?$/
   private readonly allowedApplications: string[]
 
   constructor(
@@ -122,9 +122,8 @@ export class AnalyticsService {
 
     // Validate client_id format (supports wallet suffix)
     // Standard: clientName@version@uuid
-    // With wallet: clientName@version@uuid@walletPrefix
-    const CLIENT_ID_REGEX = /^[a-zA-Z0-9-]+@\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?@[0-9a-f-]{36}(@[a-zA-Z0-9]+)?$/
-    if (!CLIENT_ID_REGEX.test(dto.client_id)) {
+    // With wallet: clientName@version@uuid@walletAddress (43 base64url chars)
+    if (!this.CLIENT_ID_REGEX.test(dto.client_id)) {
       this.logger.warn(
         `Invalid client_id format - query_id: ${dto.query_id}, client_id: ${dto.client_id}`
       )
@@ -413,8 +412,7 @@ export class AnalyticsService {
     }
 
     // Validate client_id format (supports wallet suffix)
-    const CLIENT_ID_REGEX = /^[a-zA-Z0-9-]+@\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?@[0-9a-f-]{36}(@[a-zA-Z0-9]+)?$/
-    if (!CLIENT_ID_REGEX.test(dto.client_id)) {
+    if (!this.CLIENT_ID_REGEX.test(dto.client_id)) {
       this.logger.warn(
         `Invalid client_id format for event - query_id: ${dto.query_id}, client_id: ${dto.client_id}`
       )
