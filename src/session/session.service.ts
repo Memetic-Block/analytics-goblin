@@ -29,6 +29,16 @@ export class SessionService {
   }
 
   /**
+   * Validate wallet address format: exactly 43 base64url characters
+   */
+  private validateWalletAddress(walletAddress: string): boolean {
+    if (walletAddress.length !== 43) {
+      return false
+    }
+    return /^[a-zA-Z0-9_-]{43}$/.test(walletAddress)
+  }
+
+  /**
    * Generate session_id and client_id, store in Redis
    * Optionally associate wallet address if user opts in
    * Frontend stores these in localStorage
@@ -56,18 +66,31 @@ export class SessionService {
     // Store session in Redis with 24 hour TTL
     await this.redisService.storeSession(sessionId, 86400)
 
-    // If wallet provided, store wallet -> session mapping
+    // If wallet provided, validate and store wallet -> session mapping
     if (walletAddress && walletAddress.trim().length > 0) {
-      await this.redisService.storeWalletForSession(sessionId, walletAddress.trim(), 86400)
+      const trimmedWallet = walletAddress.trim()
+      if (!this.validateWalletAddress(trimmedWallet)) {
+        throw new BadRequestException({
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'wallet_address must be exactly 43 base64url characters (A-Z, a-z, 0-9, -, _)',
+          error: 'Bad Request',
+          errorCode: ErrorCode.VALIDATION_ERROR,
+          action: ErrorAction.FIX_DATA,
+          retry: false
+        })
+      }
+      await this.redisService.storeWalletForSession(sessionId, trimmedWallet, 86400)
     }
 
-    // Construct UBI-compatible client_id with optional wallet hash
+    // Construct UBI-compatible client_id with optional wallet address
     let clientId = `${clientName}@${clientVersion}@${sessionId}`
     
-    // Append wallet prefix if provided (first 8 chars for privacy)
-    if (walletAddress && walletAddress.trim().length >= 8) {
-      const walletPrefix = walletAddress.trim().substring(0, 8)
-      clientId += `@${walletPrefix}`
+    // Append full wallet address if provided and validated
+    if (walletAddress && walletAddress.trim().length === 43) {
+      const trimmedWallet = walletAddress.trim()
+      if (this.validateWalletAddress(trimmedWallet)) {
+        clientId += `@${trimmedWallet}`
+      }
     }
 
     const response: SessionResponse = {
@@ -121,16 +144,10 @@ export class SessionService {
     // Store/update wallet for this session
     await this.redisService.storeWalletForSession(sessionId, walletAddress.trim(), 86400)
 
-    // We need to reconstruct the client_id, but we don't have client name/version stored
-    // Parse from the original client_id if possible, or return updated info
-    // For now, we'll return the session_id and let client update their stored client_id
-    
-    // Construct client_id suffix with wallet prefix
-    const walletPrefix = walletAddress.trim().substring(0, 8)
-    
+    // Return updated client_id with full wallet address appended
     return {
       session_id: sessionId,
-      client_id: `@${walletPrefix}`, // Client should append this to their existing client_id
+      client_id: `@${walletAddress.trim()}`, // Client should append this to their existing client_id
       wallet_address: walletAddress.trim()
     }
   }
