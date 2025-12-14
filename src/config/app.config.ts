@@ -31,7 +31,8 @@ export default registerAs(
   (): AppConfig => ({
     port: parseInt(process.env.PORT || '3001', 10),
     corsAllowedOrigin: process.env.CORS_ALLOWED_ORIGIN || '*',
-    trustProxy: process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true',
+    trustProxy:
+      process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true',
     gdprMode: true,
     anonymizeIps: true,
     throttle: {
@@ -42,18 +43,26 @@ export default registerAs(
         limit: parseInt(process.env.THROTTLE_BURST_LIMIT || '3', 10)
       }
     },
-    allowedClientNames: (process.env.ALLOWED_CLIENT_NAMES || 'web,mobile-ios,mobile-android')
+    allowedClientNames: (
+      process.env.ALLOWED_CLIENT_NAMES || 'web,mobile-ios,mobile-android'
+    )
       .split(',')
-      .map(name => name.trim())
-      .filter(name => name.length > 0),
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0),
     analytics: {
       maxQueryLength: parseInt(process.env.MAX_QUERY_LENGTH || '5000', 10),
       maxBatchSize: parseInt(process.env.MAX_BATCH_SIZE || '50', 10),
-      maxQueryResponseHits: parseInt(process.env.MAX_QUERY_RESPONSE_HITS || '100', 10),
-      allowedApplications: (process.env.ALLOWED_APPLICATIONS || 'graphql-images,graphql-video,graphql-audio')
+      maxQueryResponseHits: parseInt(
+        process.env.MAX_QUERY_RESPONSE_HITS || '100',
+        10
+      ),
+      allowedApplications: (
+        process.env.ALLOWED_APPLICATIONS ||
+        'graphql-images,graphql-video,graphql-audio'
+      )
         .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0),
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
       bulkChunkSize: parseInt(process.env.BULK_CHUNK_SIZE || '20', 10)
     }
   })

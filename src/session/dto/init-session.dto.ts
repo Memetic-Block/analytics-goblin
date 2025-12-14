@@ -13,7 +13,8 @@ export class InitSessionDto {
   @IsNotEmpty()
   @Length(1, 20)
   @Matches(/^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$/, {
-    message: 'client_version must be in semver format (e.g., 1.2.3 or 1.2.3-beta.1)'
+    message:
+      'client_version must be in semver format (e.g., 1.2.3 or 1.2.3-beta.1)'
   })
   client_version: string
 }

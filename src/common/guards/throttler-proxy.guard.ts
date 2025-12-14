@@ -9,12 +9,12 @@ import { ThrottlerGuard } from '@nestjs/throttler'
  */
 @Injectable()
 export class ThrottlerBehindProxyGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, any>): Promise<string> {
+  protected getTracker(req: Record<string, any>): Promise<string> {
     // Extract real IP from X-Forwarded-For header when behind proxy
-    const ip = (req.ips && req.ips.length > 0) ? req.ips[0] : (req.ip || 'unknown')
-    
+    const ip = req.ips && req.ips.length > 0 ? req.ips[0] : req.ip || 'unknown'
+
     // Anonymize IP for GDPR compliance
-    return this.anonymizeIp(ip)
+    return Promise.resolve(this.anonymizeIp(String(ip)))
   }
 
   /**
@@ -35,7 +35,7 @@ export class ThrottlerBehindProxyGuard extends ThrottlerGuard {
 
     // IPv6: Keep first 4 segments (64 bits), zero out rest
     if (ip.includes(':')) {
-      const parts = ip.split(':').filter(p => p.length > 0)
+      const parts = ip.split(':').filter((p) => p.length > 0)
       if (parts.length >= 4) {
         return `${parts[0]}:${parts[1]}:${parts[2]}:${parts[3]}::`
       }

@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common'
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import Redis from 'ioredis'
 
@@ -15,7 +20,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try {
       if (mode === 'sentinel') {
         const sentinels = this.configService.get('redis.sentinels', [])
-        const masterName = this.configService.get('redis.masterName', 'mymaster')
+        const masterName = this.configService.get(
+          'redis.masterName',
+          'mymaster'
+        )
 
         this.client = new Redis({
           sentinels,
@@ -104,7 +112,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /**
    * Store session ID with TTL (default 24 hours)
    */
-  async storeSession(sessionId: string, ttlSeconds: number = 86400): Promise<void> {
+  async storeSession(
+    sessionId: string,
+    ttlSeconds: number = 86400
+  ): Promise<void> {
     await this.client.setex(`session:${sessionId}`, ttlSeconds, '1')
   }
 
@@ -119,7 +130,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /**
    * Extend session TTL (refresh on activity)
    */
-  async refreshSession(sessionId: string, ttlSeconds: number = 86400): Promise<void> {
+  async refreshSession(
+    sessionId: string,
+    ttlSeconds: number = 86400
+  ): Promise<void> {
     await this.client.expire(`session:${sessionId}`, ttlSeconds)
   }
 
@@ -133,8 +147,16 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /**
    * Store wallet address associated with session (optional)
    */
-  async storeWalletForSession(sessionId: string, walletAddress: string, ttlSeconds: number = 86400): Promise<void> {
-    await this.client.setex(`session:wallet:${sessionId}`, ttlSeconds, walletAddress)
+  async storeWalletForSession(
+    sessionId: string,
+    walletAddress: string,
+    ttlSeconds: number = 86400
+  ): Promise<void> {
+    await this.client.setex(
+      `session:wallet:${sessionId}`,
+      ttlSeconds,
+      walletAddress
+    )
   }
 
   /**

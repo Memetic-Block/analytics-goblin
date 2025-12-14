@@ -1,4 +1,9 @@
-import { IsArray, ValidateNested, ArrayMaxSize, IsOptional } from 'class-validator'
+import {
+  IsArray,
+  ValidateNested,
+  ArrayMaxSize,
+  IsOptional
+} from 'class-validator'
 import { Type } from 'class-transformer'
 import { SubmitQueryDto } from './submit-query.dto'
 import { SubmitEventDto } from './submit-event.dto'

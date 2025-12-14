@@ -26,6 +26,7 @@ export class OpenSearchService implements OnModuleInit {
       clientConfig.ssl = config.ssl
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     this.client = new Client(clientConfig)
   }
 
@@ -35,13 +36,15 @@ export class OpenSearchService implements OnModuleInit {
       this.logger.log(
         `Connected to OpenSearch cluster: ${health.body.cluster_name}`
       )
-      
+
       // Check if UBI plugin is installed
       const ubiPluginInstalled = await this.checkUbiPlugin()
       if (ubiPluginInstalled) {
         this.logger.log('UBI plugin detected and ready')
       } else {
-        this.logger.warn('UBI plugin not detected - please install the OpenSearch UBI plugin')
+        this.logger.warn(
+          'UBI plugin not detected - please install the OpenSearch UBI plugin'
+        )
       }
     } catch (error) {
       this.logger.error('Failed to connect to OpenSearch', error)
@@ -55,7 +58,7 @@ export class OpenSearchService implements OnModuleInit {
     try {
       const response = await this.client.cat.plugins({ format: 'json' })
       const plugins = response.body as Array<{ component: string }>
-      return plugins.some(p => p.component && p.component.includes('ubi'))
+      return plugins.some((p) => p.component && p.component.includes('ubi'))
     } catch (error) {
       this.logger.error('Failed to check UBI plugin status', error)
       return false
@@ -66,6 +69,7 @@ export class OpenSearchService implements OnModuleInit {
    * Query the ubi_queries index
    */
   async queryUbiQueries(params: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     return this.client.search({
       index: 'ubi_queries',
       ...params
@@ -76,6 +80,7 @@ export class OpenSearchService implements OnModuleInit {
    * Query the ubi_events index
    */
   async queryUbiEvents(params: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     return this.client.search({
       index: 'ubi_events',
       ...params
@@ -86,6 +91,7 @@ export class OpenSearchService implements OnModuleInit {
    * Generic search method for custom queries
    */
   async search(params: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     return this.client.search(params)
   }
 
@@ -124,7 +130,7 @@ export class OpenSearchService implements OnModuleInit {
         )
         return
       }
-      
+
       // Log other errors with metadata only
       this.logger.error(
         `Failed to index query - query_id: ${document.query_id}, client_id: ${document.client_id}, application: ${document.application}, error: ${error.message}`
@@ -136,14 +142,17 @@ export class OpenSearchService implements OnModuleInit {
    * Bulk index multiple query documents to ubi_queries
    * Processes documents in chunks to avoid OpenSearch bulk request size limits
    */
-  async bulkIndexQueries(documents: UbiQuery[], chunkSize: number): Promise<void> {
+  async bulkIndexQueries(
+    documents: UbiQuery[],
+    chunkSize: number
+  ): Promise<void> {
     // Split documents into chunks
     for (let i = 0; i < documents.length; i += chunkSize) {
       const chunk = documents.slice(i, i + chunkSize)
-      
+
       try {
         // Build bulk operations
-        const operations = chunk.flatMap(doc => [
+        const operations = chunk.flatMap((doc) => [
           { create: { _index: 'ubi_queries', _id: doc.query_id } },
           doc
         ])
@@ -199,14 +208,17 @@ export class OpenSearchService implements OnModuleInit {
    * Bulk index multiple event documents to ubi_events
    * Processes documents in chunks to avoid OpenSearch bulk request size limits
    */
-  async bulkIndexEvents(documents: UbiEvent[], chunkSize: number): Promise<void> {
+  async bulkIndexEvents(
+    documents: UbiEvent[],
+    chunkSize: number
+  ): Promise<void> {
     // Split documents into chunks
     for (let i = 0; i < documents.length; i += chunkSize) {
       const chunk = documents.slice(i, i + chunkSize)
-      
+
       try {
         // Build bulk operations (use index not create - events can be duplicate actions)
-        const operations = chunk.flatMap(doc => [
+        const operations = chunk.flatMap((doc) => [
           { index: { _index: 'ubi_events' } },
           doc
         ])

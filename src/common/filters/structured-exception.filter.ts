@@ -1,6 +1,17 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common'
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger
+} from '@nestjs/common'
 import { Response } from 'express'
-import { ErrorResponseDto, ErrorAction, ErrorCode } from '../dto/error-response.dto'
+import {
+  ErrorResponseDto,
+  ErrorAction,
+  ErrorCode
+} from '../dto/error-response.dto'
 
 /**
  * Global exception filter that converts exceptions into structured error responses
@@ -13,7 +24,6 @@ export class StructuredExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp()
     const response = ctx.getResponse<Response>()
-    const request = ctx.getRequest()
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR
     let errorResponse: ErrorResponseDto
@@ -23,15 +33,14 @@ export class StructuredExceptionFilter implements ExceptionFilter {
       const exceptionResponse = exception.getResponse()
 
       // Handle structured error responses
-      if (typeof exceptionResponse === 'object' && 'errorCode' in exceptionResponse) {
+      if (
+        typeof exceptionResponse === 'object' &&
+        'errorCode' in exceptionResponse
+      ) {
         errorResponse = exceptionResponse as ErrorResponseDto
       } else {
         // Convert standard HttpException to structured format
-        errorResponse = this.createErrorResponse(
-          status,
-          exceptionResponse,
-          request
-        )
+        errorResponse = this.createErrorResponse(status, exceptionResponse)
       }
     } else {
       // Handle unexpected errors
@@ -51,23 +60,24 @@ export class StructuredExceptionFilter implements ExceptionFilter {
 
   private createErrorResponse(
     status: number,
-    exceptionResponse: string | object,
-    request: any
+    exceptionResponse: string | object
   ): ErrorResponseDto {
-    const message = typeof exceptionResponse === 'string'
-      ? exceptionResponse
-      : (exceptionResponse as any).message || 'An error occurred'
+    const message =
+      typeof exceptionResponse === 'string'
+        ? exceptionResponse
+        : (exceptionResponse as any).message || 'An error occurred'
 
-    const error = typeof exceptionResponse === 'object' && 'error' in exceptionResponse
-      ? (exceptionResponse as any).error
-      : this.getErrorName(status)
+    const error =
+      typeof exceptionResponse === 'object' && 'error' in exceptionResponse
+        ? (exceptionResponse as any).error
+        : this.getErrorName(status)
 
     // Determine action based on status code
     let action: ErrorAction | undefined
     let errorCode: string | undefined
     let retry = false
 
-    switch (status) {
+    switch (status as HttpStatus) {
       case HttpStatus.UNAUTHORIZED:
         action = ErrorAction.REQUEST_NEW_SESSION
         errorCode = ErrorCode.INVALID_SESSION

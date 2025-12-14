@@ -1,7 +1,6 @@
-import { Controller, Post, Body, HttpCode, Logger, ServiceUnavailableException, HttpStatus } from '@nestjs/common'
+import { Controller, Post, Body, HttpCode, Logger } from '@nestjs/common'
 import { AnalyticsService } from './analytics.service'
 import { SubmitAnalyticsBatchDto } from './dto/submit-analytics-batch.dto'
-import { ErrorAction, ErrorCode } from '../common/dto/error-response.dto'
 
 @Controller('analytics')
 export class AnalyticsController {
@@ -13,7 +12,7 @@ export class AnalyticsController {
    * Submit mixed analytics data (queries and events) in batch to UBI (fire-and-forget)
    * Returns 200 OK immediately, processing happens asynchronously
    * Rate limiting handled by Traefik
-   * 
+   *
    * Throws UnauthorizedException if all sessions in batch are invalid/expired
    */
   @Post('batch')
@@ -22,7 +21,7 @@ export class AnalyticsController {
     // Validate that at least one session in the batch exists
     // If all sessions are invalid/expired, reject the batch
     await this.analyticsService.validateSessionsInBatch(dto)
-    
+
     // Process batch asynchronously (fire-and-forget)
     this.analyticsService.submitBatch(dto)
   }
