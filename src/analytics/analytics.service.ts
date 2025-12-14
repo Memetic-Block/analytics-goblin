@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { OpenSearchService } from '../opensearch/opensearch.service'
 import { RedisService } from '../redis/redis.service'
+import { RewardsQueueService } from '../rewards-queue/rewards-queue.service'
 import {
   TopSearchResult,
   PopularDocument,
@@ -13,19 +14,25 @@ import {
 import { SubmitQueryDto } from './dto/submit-query.dto'
 import { SubmitEventDto } from './dto/submit-event.dto'
 import { SubmitAnalyticsBatchDto } from './dto/submit-analytics-batch.dto'
+import { ErrorCode, ErrorAction } from '../common/dto/error-response.dto'
 
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger('AnalyticsService')
-  private readonly CLIENT_ID_REGEX = /^[a-zA-Z0-9-]+@\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?@[0-9a-f-]{36}(@[a-zA-Z0-9_-]{43})?$/
+  private readonly CLIENT_ID_REGEX =
+    /^[a-zA-Z0-9-]+@\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?@[0-9a-f-]{36}(@[a-zA-Z0-9_-]{43})?$/
   private readonly allowedApplications: string[]
 
   constructor(
     private readonly openSearchService: OpenSearchService,
     private readonly configService: ConfigService,
-    private readonly redisService: RedisService
+    private readonly redisService: RedisService,
+    private readonly rewardsQueueService: RewardsQueueService
   ) {
-    this.allowedApplications = this.configService.get<string[]>('app.analytics.allowedApplications', [])
+    this.allowedApplications = this.configService.get<string[]>(
+      'app.analytics.allowedApplications',
+      []
+    )
   }
 
   /**
@@ -44,38 +51,36 @@ export class AnalyticsService {
   async validateSessionsInBatch(dto: SubmitAnalyticsBatchDto): Promise<void> {
     const queries = dto.queries || []
     const events = dto.events || []
-    
+
     // Extract all unique client_ids from batch
     const clientIds = new Set<string>()
-    queries.forEach(q => q.client_id && clientIds.add(q.client_id))
-    events.forEach(e => e.client_id && clientIds.add(e.client_id))
-    
+    queries.forEach((q) => q.client_id && clientIds.add(q.client_id))
+    events.forEach((e) => e.client_id && clientIds.add(e.client_id))
+
     if (clientIds.size === 0) {
       // No client_ids provided, will fail validation later but don't block
       return
     }
-    
+
     // Extract session IDs and validate at least one exists
     const sessionIds = Array.from(clientIds)
-      .map(clientId => this.extractSessionId(clientId))
+      .map((clientId) => this.extractSessionId(clientId))
       .filter((sessionId): sessionId is string => sessionId !== null)
-    
+
     if (sessionIds.length === 0) {
       // No valid session IDs could be extracted
       return
     }
-    
+
     // Check if at least one session exists in Redis
     const validationResults = await Promise.all(
-      sessionIds.map(sessionId => this.redisService.isValidSession(sessionId))
+      sessionIds.map((sessionId) => this.redisService.isValidSession(sessionId))
     )
-    
-    const hasAnyValidSession = validationResults.some(isValid => isValid)
-    
+
+    const hasAnyValidSession = validationResults.some((isValid) => isValid)
+
     if (!hasAnyValidSession) {
       // All sessions are invalid/expired
-      const { UnauthorizedException } = require('@nestjs/common')
-      const { ErrorCode, ErrorAction } = require('../common/dto/error-response.dto')
       throw new UnauthorizedException({
         statusCode: 401,
         message: 'All sessions in batch are invalid or expired',
@@ -88,7 +93,7 @@ export class AnalyticsService {
   }
 
   /**
-   * Extract session ID from client_id format: 
+   * Extract session ID from client_id format:
    * - clientName@version@sessionId
    * - clientName@version@sessionId@walletAddress
    */
@@ -103,9 +108,16 @@ export class AnalyticsService {
    * Returns null if validation fails
    * Enriches with wallet address from Redis if user opted in
    */
-  private async validateAndTransformQuery(dto: SubmitQueryDto): Promise<UbiQuery | null> {
+  private async validateAndTransformQuery(
+    dto: SubmitQueryDto
+  ): Promise<UbiQuery | null> {
     // Validate required fields
-    if (!dto.user_query || !dto.query_id || !dto.client_id || !dto.application) {
+    if (
+      !dto.user_query ||
+      !dto.query_id ||
+      !dto.client_id ||
+      !dto.application
+    ) {
       this.logger.debug(
         `Missing required fields - query_id: ${dto.query_id}, client_id: ${dto.client_id}, application: ${dto.application}, has_user_query: ${!!dto.user_query}`
       )
@@ -168,10 +180,16 @@ export class AnalyticsService {
       client_id: dto.client_id,
       user_query: dto.user_query,
       timestamp,
-      ...(Object.keys(queryAttributes).length > 0 && { query_attributes: queryAttributes }),
+      ...(Object.keys(queryAttributes).length > 0 && {
+        query_attributes: queryAttributes
+      }),
       ...(dto.object_id_field && { object_id_field: dto.object_id_field }),
-      ...(dto.query_response_id && { query_response_id: dto.query_response_id }),
-      ...(dto.query_response_hit_ids && { query_response_hit_ids: dto.query_response_hit_ids })
+      ...(dto.query_response_id && {
+        query_response_id: dto.query_response_id
+      }),
+      ...(dto.query_response_hit_ids && {
+        query_response_hit_ids: dto.query_response_hit_ids
+      })
     }
   }
 
@@ -402,7 +420,9 @@ export class AnalyticsService {
    * Returns null if validation fails
    * Enriches with wallet address from Redis if user opted in
    */
-  private async validateAndTransformEvent(dto: SubmitEventDto): Promise<UbiEvent | null> {
+  private async validateAndTransformEvent(
+    dto: SubmitEventDto
+  ): Promise<UbiEvent | null> {
     // Validate required fields
     if (!dto.action_name || !dto.query_id || !dto.client_id) {
       this.logger.debug(
@@ -456,7 +476,9 @@ export class AnalyticsService {
       action_name: dto.action_name,
       client_id: dto.client_id,
       timestamp,
-      ...(Object.keys(eventAttributes).length > 0 && { event_attributes: eventAttributes })
+      ...(Object.keys(eventAttributes).length > 0 && {
+        event_attributes: eventAttributes
+      })
     }
   }
 
@@ -465,61 +487,109 @@ export class AnalyticsService {
    * Validates all items first, then bulk indexes valid ones by type
    */
   submitBatch(dto: SubmitAnalyticsBatchDto): void {
-    setImmediate(async () => {
-      try {
-        const bulkChunkSize = this.configService.get<number>('app.analytics.bulkChunkSize', 20)
-        
-        const queries = dto.queries || []
-        const events = dto.events || []
-        
-        // Validate and transform queries
-        const queryValidationPromises = queries.map(queryDto => this.validateAndTransformQuery(queryDto))
-        const queryResults = await Promise.all(queryValidationPromises)
-        const validQueries = queryResults.filter((query): query is UbiQuery => query !== null)
-        
-        // Log query validation failures
-        const failedQueries = queries.length - validQueries.length
-        if (failedQueries > 0) {
-          this.logger.warn(
-            `Query validation: ${failedQueries}/${queries.length} queries failed validation`
-          )
-        }
+    setImmediate(
+      () =>
+        void (async () => {
+          try {
+            const bulkChunkSize = this.configService.get<number>(
+              'app.analytics.bulkChunkSize',
+              20
+            )
 
-        // Validate and transform events
-        const eventValidationPromises = events.map(eventDto => this.validateAndTransformEvent(eventDto))
-        const eventResults = await Promise.all(eventValidationPromises)
-        const validEvents = eventResults.filter((event): event is UbiEvent => event !== null)
-        
-        // Log event validation failures
-        const failedEvents = events.length - validEvents.length
-        if (failedEvents > 0) {
-          this.logger.warn(
-            `Event validation: ${failedEvents}/${events.length} events failed validation`
-          )
-        }
+            const queries = dto.queries || []
+            const events = dto.events || []
 
-        // Bulk index valid queries
-        if (validQueries.length > 0) {
-          await this.openSearchService.bulkIndexQueries(validQueries, bulkChunkSize)
-        }
+            // Validate and transform queries
+            const queryValidationPromises = queries.map((queryDto) =>
+              this.validateAndTransformQuery(queryDto)
+            )
+            const queryResults = await Promise.all(queryValidationPromises)
+            const validQueries = queryResults.filter(
+              (query): query is UbiQuery => query !== null
+            )
 
-        // Bulk index valid events
-        if (validEvents.length > 0) {
-          await this.openSearchService.bulkIndexEvents(validEvents, bulkChunkSize)
-        }
+            // Log query validation failures
+            const failedQueries = queries.length - validQueries.length
+            if (failedQueries > 0) {
+              this.logger.warn(
+                `Query validation: ${failedQueries}/${queries.length} queries failed validation`
+              )
+            }
 
-        // Log summary
-        if (queries.length > 0 || events.length > 0) {
-          this.logger.log(
-            `Batch processed: ${validQueries.length}/${queries.length} queries, ${validEvents.length}/${events.length} events`
-          )
-        }
-      } catch (error: any) {
-        this.logger.error(
-          `Error processing analytics batch submission: ${error.message}`
-        )
-      }
-    })
+            // Enqueue reward events for eligible queries with wallet addresses
+            // Wrapped in try-catch to prevent errors from blocking analytics indexing
+            try {
+              const rewardEnqueuePromises = validQueries
+                .filter(
+                  (query) =>
+                    query.query_attributes?.wallet_address &&
+                    this.rewardsQueueService.isEligibleApplication(
+                      query.application
+                    )
+                )
+                .map((query) =>
+                  this.rewardsQueueService.enqueueRewardEvent(
+                    query.query_attributes!.wallet_address as string,
+                    query.application,
+                    query.timestamp
+                  )
+                )
+
+              if (rewardEnqueuePromises.length > 0) {
+                await Promise.all(rewardEnqueuePromises)
+              }
+            } catch (error: any) {
+              this.logger.error(
+                `Error enqueueing reward events: ${error.message}. Analytics indexing will continue.`
+              )
+            }
+
+            // Validate and transform events
+            const eventValidationPromises = events.map((eventDto) =>
+              this.validateAndTransformEvent(eventDto)
+            )
+            const eventResults = await Promise.all(eventValidationPromises)
+            const validEvents = eventResults.filter(
+              (event): event is UbiEvent => event !== null
+            )
+
+            // Log event validation failures
+            const failedEvents = events.length - validEvents.length
+            if (failedEvents > 0) {
+              this.logger.warn(
+                `Event validation: ${failedEvents}/${events.length} events failed validation`
+              )
+            }
+
+            // Bulk index valid queries
+            if (validQueries.length > 0) {
+              await this.openSearchService.bulkIndexQueries(
+                validQueries,
+                bulkChunkSize
+              )
+            }
+
+            // Bulk index valid events
+            if (validEvents.length > 0) {
+              await this.openSearchService.bulkIndexEvents(
+                validEvents,
+                bulkChunkSize
+              )
+            }
+
+            // Log summary
+            if (queries.length > 0 || events.length > 0) {
+              this.logger.log(
+                `Batch processed: ${validQueries.length}/${queries.length} queries, ${validEvents.length}/${events.length} events`
+              )
+            }
+          } catch (error: any) {
+            this.logger.error(
+              `Error processing analytics batch submission: ${error.message}`
+            )
+          }
+        })()
+    )
   }
 
   // ========================================
@@ -533,21 +603,24 @@ export class AnalyticsService {
    * Validation and indexing happen asynchronously
    */
   submitQuery(dto: SubmitQueryDto): void {
-    setImmediate(async () => {
-      try {
-        const ubiQuery = await this.validateAndTransformQuery(dto)
-        if (!ubiQuery) {
-          return
-        }
+    setImmediate(
+      () =>
+        void (async () => {
+          try {
+            const ubiQuery = await this.validateAndTransformQuery(dto)
+            if (!ubiQuery) {
+              return
+            }
 
-        // Index the query
-        await this.openSearchService.indexQuery(ubiQuery)
-      } catch (error: any) {
-        this.logger.error(
-          `Error processing query submission - query_id: ${dto.query_id}, error: ${error.message}`
-        )
-      }
-    })
+            // Index the query
+            await this.openSearchService.indexQuery(ubiQuery)
+          } catch (error: any) {
+            this.logger.error(
+              `Error processing query submission - query_id: ${dto.query_id}, error: ${error.message}`
+            )
+          }
+        })()
+    )
   }
 
   /**
@@ -556,34 +629,48 @@ export class AnalyticsService {
    * Validates all queries first, then bulk indexes valid ones
    */
   submitQueriesBatch(dto: any): void {
-    setImmediate(async () => {
-      try {
-        const bulkChunkSize = this.configService.get<number>('app.analytics.bulkChunkSize', 20)
-        
-        // Validate and transform all queries (now async)
-        const validationPromises = dto.queries.map((queryDto: SubmitQueryDto) => this.validateAndTransformQuery(queryDto))
-        const validationResults = await Promise.all(validationPromises)
-        const validQueries = validationResults.filter((query): query is UbiQuery => query !== null)
+    setImmediate(
+      () =>
+        void (async () => {
+          try {
+            const bulkChunkSize = this.configService.get<number>(
+              'app.analytics.bulkChunkSize',
+              20
+            )
 
-        // Log warning if no valid queries found
-        if (validQueries.length === 0) {
-          this.logger.warn(
-            `Batch submission resulted in 0 valid queries out of ${dto.queries.length} submitted`
-          )
-          return
-        }
+            // Validate and transform all queries (now async)
+            const validationPromises = dto.queries.map(
+              (queryDto: SubmitQueryDto) =>
+                this.validateAndTransformQuery(queryDto)
+            )
+            const validationResults = await Promise.all(validationPromises)
+            const validQueries = validationResults.filter(
+              (query): query is UbiQuery => query !== null
+            )
 
-        // Bulk index valid queries
-        await this.openSearchService.bulkIndexQueries(validQueries, bulkChunkSize)
-        
-        this.logger.debug(
-          `Batch processed: ${validQueries.length} valid queries out of ${dto.queries.length} submitted`
-        )
-      } catch (error: any) {
-        this.logger.error(
-          `Error processing batch submission: ${error.message}`
-        )
-      }
-    })
+            // Log warning if no valid queries found
+            if (validQueries.length === 0) {
+              this.logger.warn(
+                `Batch submission resulted in 0 valid queries out of ${dto.queries.length} submitted`
+              )
+              return
+            }
+
+            // Bulk index valid queries
+            await this.openSearchService.bulkIndexQueries(
+              validQueries,
+              bulkChunkSize
+            )
+
+            this.logger.debug(
+              `Batch processed: ${validQueries.length} valid queries out of ${dto.queries.length} submitted`
+            )
+          } catch (error: any) {
+            this.logger.error(
+              `Error processing batch submission: ${error.message}`
+            )
+          }
+        })()
+    )
   }
 }

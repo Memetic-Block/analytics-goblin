@@ -25,7 +25,10 @@ export class SessionService {
     private configService: ConfigService,
     private redisService: RedisService
   ) {
-    this.allowedClientNames = this.configService.get('app.allowedClientNames', [])
+    this.allowedClientNames = this.configService.get(
+      'app.allowedClientNames',
+      []
+    )
   }
 
   /**
@@ -46,7 +49,7 @@ export class SessionService {
   async initializeSession(
     clientName: string,
     clientVersion: string,
-    walletAddress?: string,
+    walletAddress?: string
   ): Promise<SessionResponse> {
     // Validate client name is in whitelist
     if (!this.allowedClientNames.includes(clientName)) {
@@ -72,19 +75,24 @@ export class SessionService {
       if (!this.validateWalletAddress(trimmedWallet)) {
         throw new BadRequestException({
           statusCode: HttpStatus.BAD_REQUEST,
-          message: 'wallet_address must be exactly 43 base64url characters (A-Z, a-z, 0-9, -, _)',
+          message:
+            'wallet_address must be exactly 43 base64url characters (A-Z, a-z, 0-9, -, _)',
           error: 'Bad Request',
           errorCode: ErrorCode.VALIDATION_ERROR,
           action: ErrorAction.FIX_DATA,
           retry: false
         })
       }
-      await this.redisService.storeWalletForSession(sessionId, trimmedWallet, 86400)
+      await this.redisService.storeWalletForSession(
+        sessionId,
+        trimmedWallet,
+        86400
+      )
     }
 
     // Construct UBI-compatible client_id with optional wallet address
     let clientId = `${clientName}@${clientVersion}@${sessionId}`
-    
+
     // Append full wallet address if provided and validated
     if (walletAddress && walletAddress.trim().length === 43) {
       const trimmedWallet = walletAddress.trim()
@@ -126,7 +134,7 @@ export class SessionService {
    */
   async updateSessionWithWallet(
     sessionId: string,
-    walletAddress: string,
+    walletAddress: string
   ): Promise<SessionResponse> {
     // Validate session exists
     const isValid = await this.redisService.isValidSession(sessionId)
@@ -142,7 +150,11 @@ export class SessionService {
     }
 
     // Store/update wallet for this session
-    await this.redisService.storeWalletForSession(sessionId, walletAddress.trim(), 86400)
+    await this.redisService.storeWalletForSession(
+      sessionId,
+      walletAddress.trim(),
+      86400
+    )
 
     // Return updated client_id with full wallet address appended
     return {

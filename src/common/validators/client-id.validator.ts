@@ -1,4 +1,4 @@
-import { registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator'
+import { registerDecorator, ValidationOptions } from 'class-validator'
 
 /**
  * Validates client_id format: clientName@version@sessionId[@walletAddress]
@@ -8,20 +8,20 @@ import { registerDecorator, ValidationOptions, ValidationArguments } from 'class
  * - walletAddress: optional, exactly 43 base64url characters
  */
 export function IsValidClientId(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isValidClientId',
       target: object.constructor,
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: any) {
           if (typeof value !== 'string') {
             return false
           }
 
           const parts = value.split('@')
-          
+
           // Must have 3 or 4 parts
           if (parts.length < 3 || parts.length > 4) {
             return false
@@ -40,7 +40,11 @@ export function IsValidClientId(validationOptions?: ValidationOptions) {
           }
 
           // Validate sessionId: UUID format (lowercase hex with hyphens)
-          if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(sessionId)) {
+          if (
+            !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
+              sessionId
+            )
+          ) {
             return false
           }
 
@@ -53,7 +57,7 @@ export function IsValidClientId(validationOptions?: ValidationOptions) {
 
           return true
         },
-        defaultMessage(args: ValidationArguments) {
+        defaultMessage() {
           return 'client_id must be in format: clientName@version@sessionId or clientName@version@sessionId@walletAddress (wallet must be 43 base64url chars)'
         }
       }

@@ -3,10 +3,7 @@ import {
   IsOptional,
   MaxLength,
   IsObject,
-  IsArray,
-  Matches,
-  ArrayMaxSize,
-  IsNumber
+  Matches
 } from 'class-validator'
 import { IsValidClientId } from '../../common/validators/client-id.validator'
 

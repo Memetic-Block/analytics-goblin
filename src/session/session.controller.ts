@@ -1,4 +1,14 @@
-import { Controller, Get, Put, Headers, Body, HttpCode, HttpStatus, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common'
+import {
+  Controller,
+  Get,
+  Put,
+  Headers,
+  Body,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+  Logger
+} from '@nestjs/common'
 import { SessionService, SessionResponse } from './session.service'
 import { validate } from 'class-validator'
 import { plainToClass } from 'class-transformer'
@@ -17,26 +27,24 @@ import { ErrorAction, ErrorCode } from '../common/dto/error-response.dto'
 export class SessionController {
   private readonly logger = new Logger(SessionController.name)
 
-  constructor(
-    private readonly sessionService: SessionService,
-  ) {}
+  constructor(private readonly sessionService: SessionService) {}
 
   @Get('init')
   @HttpCode(HttpStatus.OK)
   async initSession(
     @Headers('x-client-name') clientName: string,
     @Headers('x-client-version') clientVersion: string,
-    @Headers('x-wallet-address') walletAddress?: string,
+    @Headers('x-wallet-address') walletAddress?: string
   ): Promise<SessionResponse> {
     // Validate using DTO
     const dto = plainToClass(InitSessionDto, {
       client_name: clientName,
-      client_version: clientVersion,
+      client_version: clientVersion
     })
-    
+
     const errors = await validate(dto)
     if (errors.length > 0) {
-      const messages = errors.flatMap(err => 
+      const messages = errors.flatMap((err) =>
         err.constraints ? Object.values(err.constraints) : []
       )
       this.logger.warn(`Session init validation failed: ${messages.join('; ')}`)
@@ -49,12 +57,12 @@ export class SessionController {
         retry: false
       })
     }
-    
+
     // Generate session_id and client_id for frontend to store
     return this.sessionService.initializeSession(
       dto.client_name,
       dto.client_version,
-      walletAddress,
+      walletAddress
     )
   }
 
@@ -62,7 +70,7 @@ export class SessionController {
   @HttpCode(HttpStatus.OK)
   async updateSession(
     @Headers('x-session-id') sessionId: string,
-    @Body() dto: UpdateSessionDto,
+    @Body() dto: UpdateSessionDto
   ): Promise<SessionResponse> {
     if (!sessionId) {
       throw new BadRequestException({
@@ -78,10 +86,12 @@ export class SessionController {
     // Validate DTO
     const errors = await validate(dto)
     if (errors.length > 0) {
-      const messages = errors.flatMap(err => 
+      const messages = errors.flatMap((err) =>
         err.constraints ? Object.values(err.constraints) : []
       )
-      this.logger.warn(`Session update validation failed: ${messages.join('; ')}`)
+      this.logger.warn(
+        `Session update validation failed: ${messages.join('; ')}`
+      )
       throw new BadRequestException({
         statusCode: HttpStatus.BAD_REQUEST,
         message: messages,
@@ -95,7 +105,7 @@ export class SessionController {
     // Update session with wallet
     return this.sessionService.updateSessionWithWallet(
       sessionId,
-      dto.wallet_address,
+      dto.wallet_address
     )
   }
 }

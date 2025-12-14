@@ -31,11 +31,11 @@ async function bootstrap() {
   const corsOrigin = configService.get('app.corsAllowedOrigin')
   app.enableCors({
     origin: corsOrigin,
-    credentials: false  // No cookies = no credentials needed
+    credentials: false // No cookies = no credentials needed
   })
 
   const port = configService.get('app.port')
-  await app.listen(port)
+  await app.listen(port as number)
 
   logger.log(`Analytics GOBLIN MODE ON @ port ${port}`)
 }
