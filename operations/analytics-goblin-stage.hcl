@@ -49,6 +49,7 @@ job "analytics-goblin-stage" {
         
         # Redis config
         REDIS_MODE="standalone"
+        REWARDS_REDIS_MODE="standalone"
         
         # Analytics config
         ALLOWED_APPLICATIONS="graphql-images,graphql-video,graphql-audio"
@@ -71,6 +72,10 @@ job "analytics-goblin-stage" {
         {{- range service "analytics-goblin-redis-stage" }}
         REDIS_HOST="{{ .Address }}"
         REDIS_PORT="{{ .Port }}"
+        {{- end }}
+        {{- range service "rewards-goblin-redis-stage" }}
+        REWARDS_REDIS_HOST="{{ .Address }}"
+        REWARDS_REDIS_PORT="{{ .Port }}"
         {{- end }}
         {{- range service "container-registry" }}
         CONTAINER_REGISTRY_ADDR="{{ .Address }}:{{ .Port }}"
