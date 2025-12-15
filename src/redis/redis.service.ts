@@ -116,15 +116,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     sessionId: string,
     ttlSeconds: number = 86400
   ): Promise<void> {
+    this.logger.debug(
+      `Storing session: ${sessionId} with TTL ${ttlSeconds}s`
+    )
     await this.client.setex(`session:${sessionId}`, ttlSeconds, '1')
+    this.logger.debug(`Session stored successfully: ${sessionId}`)
   }
 
   /**
    * Check if session ID is valid
    */
   async isValidSession(sessionId: string): Promise<boolean> {
+    this.logger.debug(`Checking if session exists: ${sessionId}`)
     const exists = await this.client.exists(`session:${sessionId}`)
-    return exists === 1
+    const isValid = exists === 1
+    this.logger.debug(
+      `Session ${sessionId} validation result: ${isValid ? 'VALID' : 'INVALID'} (exists=${exists})`
+    )
+    return isValid
   }
 
   /**
@@ -134,14 +143,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     sessionId: string,
     ttlSeconds: number = 86400
   ): Promise<void> {
-    await this.client.expire(`session:${sessionId}`, ttlSeconds)
+    this.logger.debug(
+      `Refreshing session: ${sessionId} with TTL ${ttlSeconds}s`
+    )
+    const result = await this.client.expire(`session:${sessionId}`, ttlSeconds)
+    this.logger.debug(
+      `Session refresh result for ${sessionId}: ${result === 1 ? 'SUCCESS' : 'FAILED (key not found)'}`
+    )
   }
 
   /**
    * Invalidate/delete session
    */
   async deleteSession(sessionId: string): Promise<void> {
-    await this.client.del(`session:${sessionId}`)
+    this.logger.debug(`Deleting session: ${sessionId}`)
+    const result = await this.client.del(`session:${sessionId}`)
+    this.logger.debug(
+      `Session deletion result for ${sessionId}: ${result === 1 ? 'DELETED' : 'NOT FOUND'}`
+    )
   }
 
   /**
@@ -152,24 +171,37 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     walletAddress: string,
     ttlSeconds: number = 86400
   ): Promise<void> {
+    this.logger.debug(
+      `Storing wallet for session: ${sessionId}, wallet: ${walletAddress}, TTL: ${ttlSeconds}s`
+    )
     await this.client.setex(
       `session:wallet:${sessionId}`,
       ttlSeconds,
       walletAddress
     )
+    this.logger.debug(`Wallet stored successfully for session: ${sessionId}`)
   }
 
   /**
    * Get wallet address for session (returns null if not set)
    */
   async getWalletForSession(sessionId: string): Promise<string | null> {
-    return await this.client.get(`session:wallet:${sessionId}`)
+    this.logger.debug(`Getting wallet for session: ${sessionId}`)
+    const wallet = await this.client.get(`session:wallet:${sessionId}`)
+    this.logger.debug(
+      `Wallet lookup result for session ${sessionId}: ${wallet ? wallet : 'NOT FOUND'}`
+    )
+    return wallet
   }
 
   /**
    * Delete wallet association for session
    */
   async deleteWalletForSession(sessionId: string): Promise<void> {
-    await this.client.del(`session:wallet:${sessionId}`)
+    this.logger.debug(`Deleting wallet association for session: ${sessionId}`)
+    const result = await this.client.del(`session:wallet:${sessionId}`)
+    this.logger.debug(
+      `Wallet deletion result for session ${sessionId}: ${result === 1 ? 'DELETED' : 'NOT FOUND'}`
+    )
   }
 }
