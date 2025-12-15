@@ -37,6 +37,7 @@ job "analytics-goblin-stage" {
       }
 
       env {
+        LOG_LEVEL="debug"
         VERSION="[[ .commit_sha ]]"
         PORT="${NOMAD_PORT_http}"
         

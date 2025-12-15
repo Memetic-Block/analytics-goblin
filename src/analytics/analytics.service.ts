@@ -52,13 +52,24 @@ export class AnalyticsService {
     const queries = dto.queries || []
     const events = dto.events || []
 
+    this.logger.debug(
+      `Starting session validation for batch: ${queries.length} queries, ${events.length} events`
+    )
+
     // Extract all unique client_ids from batch
     const clientIds = new Set<string>()
     queries.forEach((q) => q.client_id && clientIds.add(q.client_id))
     events.forEach((e) => e.client_id && clientIds.add(e.client_id))
 
+    this.logger.debug(
+      `Extracted ${clientIds.size} unique client_ids from batch`
+    )
+
     if (clientIds.size === 0) {
       // No client_ids provided, will fail validation later but don't block
+      this.logger.debug(
+        'No client_ids provided in batch, skipping session validation'
+      )
       return
     }
 
@@ -67,20 +78,38 @@ export class AnalyticsService {
       .map((clientId) => this.extractSessionId(clientId))
       .filter((sessionId): sessionId is string => sessionId !== null)
 
+    this.logger.debug(
+      `Extracted ${sessionIds.length} valid session IDs from ${clientIds.size} client_ids`
+    )
+
     if (sessionIds.length === 0) {
       // No valid session IDs could be extracted
+      this.logger.warn(
+        `No valid session IDs could be extracted from client_ids: ${Array.from(clientIds).join(', ')}`
+      )
       return
     }
 
     // Check if at least one session exists in Redis
+    this.logger.debug(`Validating ${sessionIds.length} sessions in Redis`)
     const validationResults = await Promise.all(
       sessionIds.map((sessionId) => this.redisService.isValidSession(sessionId))
     )
+
+    // Log validation results per session
+    sessionIds.forEach((sessionId, index) => {
+      this.logger.debug(
+        `Session validation result: ${sessionId} = ${validationResults[index] ? 'VALID' : 'INVALID'}`
+      )
+    })
 
     const hasAnyValidSession = validationResults.some((isValid) => isValid)
 
     if (!hasAnyValidSession) {
       // All sessions are invalid/expired
+      this.logger.warn(
+        `All ${sessionIds.length} sessions are invalid/expired. Session IDs: ${sessionIds.join(', ')}`
+      )
       throw new UnauthorizedException({
         statusCode: 401,
         message: 'All sessions in batch are invalid or expired',
@@ -90,6 +119,11 @@ export class AnalyticsService {
         retry: false
       })
     }
+
+    const validCount = validationResults.filter((r) => r).length
+    this.logger.debug(
+      `Session validation passed: ${validCount}/${sessionIds.length} sessions are valid`
+    )
   }
 
   /**
